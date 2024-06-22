@@ -45,6 +45,8 @@ class DiGraph {
   vector<V> values;
   /** Outgoing edges for each vertex (including edge weights). */
   vector<LazyBitset<K, E>> edges;
+  vector<LazyBitset<K, E>> edges_rev;
+
   #pragma endregion
 
 
@@ -169,6 +171,17 @@ class DiGraph {
   }
 
   /**
+   * Get the number of ingoing edges of a vertex in the graph.
+   * @param u vertex id
+   * @returns number of ingoing edges of the vertex
+   */
+  inline size_t indegree(K u) const noexcept {
+    return u < span()? edges_rev[u].size() : 0;
+  }
+
+
+
+  /**
    * Get the vertex data of a vertex in the graph.
    * @param u vertex id
    * @returns associated data of the vertex
@@ -223,6 +236,7 @@ class DiGraph {
     exists.clear();
     values.clear();
     edges.clear();
+    edges_rev.clear();
   }
 
   /**
@@ -245,9 +259,11 @@ class DiGraph {
     exists.resize(S);
     values.resize(S);
     edges.resize(S);
+    edges_rev.resize(S);
     if (deg==0) return;
     for (K u=0; u<S; ++u)
       edges[u].reserve(deg);
+      // edges_rev[u].resize(deg);
   }
 
   /**
@@ -259,6 +275,7 @@ class DiGraph {
     exists.resize(n);
     values.resize(n);
     edges.resize(n);
+    edges_rev.resize(n);
   }
 
   /**
@@ -319,6 +336,7 @@ class DiGraph {
     addVertex(u);
     addVertex(v);
     if (ft(u)) edges[u].add(v, w);
+    if (ft(v)) edges_rev[v].add(u,w);
   }
 
   /**
@@ -343,6 +361,7 @@ class DiGraph {
   inline void removeEdgeIf(K u, K v, FT ft) {
     if (!hasVertex(u) || !hasVertex(v)) return;
     if (ft(u)) edges[u].remove(v);
+    if (ft(v)) edges_rev[v].remove(u);
   }
 
   /**

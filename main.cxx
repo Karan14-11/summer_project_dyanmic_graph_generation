@@ -171,17 +171,18 @@ void writeOutput(ofstream& outputFile, const DiGraph<int, int, int>& graph) {
 
 
 double KLDivergence(const std::vector<double>& P, const std::vector<double>& Q) {
-    if (P.size() != Q.size()) {
-        throw std::invalid_argument("The size of P and Q must be the same.");
-    }
-
+    size_t maxSize = std::max(P.size(), Q.size());
     double divergence = 0.0;
-    for (size_t i = 0; i < P.size(); ++i) {
-        if (P[i] != 0) {
-            if (Q[i] == 0) {
+
+    for (size_t i = 0; i < maxSize; ++i) {
+        double pVal = (i < P.size()) ? P[i] : 0.0;
+        double qVal = (i < Q.size()) ? Q[i] : 0.0;
+
+        if (pVal != 0) {
+            if (qVal == 0) {
                 throw std::invalid_argument("Q[i] must be non-zero where P[i] is non-zero.");
             }
-            divergence += P[i] * std::log(P[i] / Q[i]);
+            divergence += pVal *log(pVal*1.0 / qVal);
         }
     }
     return divergence;
@@ -215,7 +216,7 @@ std::vector<double> degreeDistributionToProbability(const std::map<size_t, size_
 template <typename G, typename K>
 void calculateInDegreeDistribution(const G& graph, std::map<size_t, size_t>& distribution) {
     graph.forEachVertexKey([&](K u) {
-        size_t inDegree = graph.inDegree(u);
+        size_t inDegree = graph.indegree(u);
         distribution[inDegree]++;
     });
 }
@@ -236,10 +237,10 @@ void calculateDegreeDistribution(const G& graph) {
 }
 
 
-void handleUpdateNature(const string& probabilityDistribution, const string& updateNature, DiGraph<int, int, int>& graph, mt19937_64& rng, size_t batchSize, double edgeDeletions, double edgeInsertions, bool allowDuplicateEdges = true, vector<double> & weights) {
+void handleUpdateNature(const string& probabilityDistribution, const string& updateNature, DiGraph<int, int, int>& graph, mt19937_64& rng, size_t batchSize, double edgeDeletions, double edgeInsertions,vector<double>& weights, bool allowDuplicateEdges = true) {
   vector<tuple<int, int, int>> insertions, deletions;
   if (updateNature == "") {
-    weights=customUpdate(probabilityDistribution ,rng, graph, batchSize, edgeInsertions, edgeDeletions, insertions, deletions, allowDuplicateEdges);
+    weights = customUpdate(probabilityDistribution ,rng, graph, batchSize, edgeInsertions, edgeDeletions, insertions, deletions, allowDuplicateEdges);
   } else if (updateNature == "uniform") {
     uniformUpdate(rng, graph, batchSize, edgeInsertions, edgeDeletions, insertions, deletions, allowDuplicateEdges);
   } else if (updateNature == "preferential") {
@@ -306,18 +307,19 @@ void handleOptions(const Options& options) {
   while (multiBatch--) {
     if (batchSize == 0) batchSize = graph.size() * batchSizeRatio;
     vector <double> weights;
-    handleUpdateNature(probabilityDistribution, updateNature, graph, rng, batchSize, edgeDeletions, edgeInsertions, allowDuplicateEdges,weights);
+    handleUpdateNature(probabilityDistribution, updateNature, graph, rng, batchSize, edgeDeletions, edgeInsertions,weights, allowDuplicateEdges);
+
+    // for(int o=0;o<weights.size();o++)
+    // cout<<weights[o]<<" ";
+    // cout<<endl;
+
+    // return;
     std::vector<double> normalised_weights_actual = normalize(weights);
     std::map<size_t, size_t> inDegreeDistribution;
     calculateInDegreeDistribution<DiGraph<int, int, int>, int>(graph, inDegreeDistribution);
     std::vector<double> normalised_weights_real= degreeDistributionToProbability(inDegreeDistribution);
 
-    try {
-        double divergence = KLDivergence(normalised_weights_actual, normalised_weights_real);
-        std::cout << "KL Divergence: " << divergence << std::endl;
-    } catch (const std::invalid_argument& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-    }
+    
 
 
 
@@ -326,6 +328,17 @@ void handleOptions(const Options& options) {
     createOutputFile(outputDir, outputPrefix, ++counter, outputFile);
     writeOutput(outputFile, graph);
     printf("Write batch update %d: %.3f seconds\n", counter, duration(startTime) / 1000.0);
+
+    // for(int kk=0;kk<normalised_weights_real.size();kk++)
+    // cout<<normalised_weights_actual[kk]<<' ';
+    // cout<<endl;
+
+    try {
+        double divergence = KLDivergence(normalised_weights_real, normalised_weights_actual);
+        std::cout << "KL Divergence: " << divergence << std::endl;
+    } catch (const std::invalid_argument& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
   }
 }
 #pragma endregion
